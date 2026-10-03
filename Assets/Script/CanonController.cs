@@ -5,14 +5,17 @@ namespace RD.Core
 {
     public class CannonController : MonoBehaviour
     {
+        [Header("Canon Config")]
         [SerializeField] private GameObject canonObject;
-        [SerializeField] private ProjectileScript projectilePrefab;
         [SerializeField] private Transform shootingPos;
-        [SerializeField] private float shootForce = 10f;
+        [SerializeField] private float shootForce = 3f;
 
         [Header("Object Pool Config")]
         [SerializeField] private Transform projectilePoolParent;
         [SerializeField] private int poolSize = 10;
+
+        [Header("Projectile")]
+        [SerializeField] private ProjectileScript projectilePrefab;
 
         private ObjectPool<ProjectileScript> objectPool;
 

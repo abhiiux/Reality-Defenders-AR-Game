@@ -7,7 +7,9 @@ namespace RD.Core
     public class ProjectileScript : MonoBehaviour
     {
         [SerializeField] private float lifetime = 10f;
+        [SerializeField] private GameObject explosionPrefab; 
 
+        private ParticleSystem explosionEffectParticle;
         private float timer;
         private bool isReturning = true; // inactive until fired
         private Rigidbody rb;
@@ -18,6 +20,7 @@ namespace RD.Core
         void Awake()
         {
             rb = GetComponent<Rigidbody>();
+            explosionEffectParticle = explosionPrefab.GetComponent<ParticleSystem>();
         }
 
         void Update()
@@ -28,9 +31,14 @@ namespace RD.Core
             if (timer <= 0f) ReturnProjectile();
         }
 
-        void OnCollisionEnter(Collision _)
+        void OnCollisionEnter(Collision _other)
         {
-            ReturnProjectile();
+            if(_other.gameObject.tag == "Player")
+            {
+                _other.gameObject.SetActive(false);
+                PlayParticle( _other.transform.position );
+                ReturnProjectile();
+            }
         }
 
         public void Launch(Vector3 position, Quaternion rotation, Vector3 impulse)
@@ -45,7 +53,13 @@ namespace RD.Core
             timer = lifetime;
             isReturning = false;
         }
-
+        private void PlayParticle(Vector3 position)
+        {
+            ParticleSystem effectInstance = Instantiate(explosionEffectParticle, position, Quaternion.identity);
+        
+            // Starts playback
+            effectInstance.Play(true);
+        }
         private void ReturnProjectile()
         {
             if (isReturning) return;

@@ -9,15 +9,6 @@ using UnityEngine.InputSystem;
 
 namespace RD.Core
 {
-    /// <summary>
-    /// Tracks ALL horizontal planes, but keeps a SINGLE selected plane for playing.
-    /// - ARPlaneManager is already set to Horizontal only, so no alignment check.
-    /// - Size filter uses ARPlane.size (full dimensions, metres).
-    /// - Tap-to-place via ARRaycastManager selects which plane to play on.
-    /// - Single screen-space Start UI (gameUI) + single GameBase spawn.
-    /// - Per-plane visuals come from ARPlaneManager.planePrefab.
-    ///   Plane detection stays on after Start.
-    /// </summary>
     [RequireComponent(typeof(ARPlaneManager), typeof(ARRaycastManager))]
     public class GameStartHelper : MonoBehaviour
     {
@@ -48,7 +39,6 @@ namespace RD.Core
         [SerializeField] private float hideDistance = 1.8f;
 
         [Header("Events")]
-        public UnityEvent onGameStart;
         public UnityEvent<ARPlane> onPlaneSelected;
 
         // Single selection for playing (kept public for backwards compat + debugging).
@@ -79,10 +69,6 @@ namespace RD.Core
             planeManager = GetComponent<ARPlaneManager>();
             raycastManager = GetComponent<ARRaycastManager>();
             arCamera = GetComponentInChildren<Camera>();
-            Debug.Assert(planeManager != null, "GameStartHelper requires ARPlaneManager on the same GameObject.");
-            Debug.Assert(raycastManager != null, "GameStartHelper requires ARRaycastManager on the same GameObject.");
-            Debug.Assert(arCamera != null, "GameStartHelper requires a Camera in children (XR Origin).");
-            Debug.Assert(worldCanvas != null, "GameStartHelper requires worldCanvas to be assigned.");
         }
 
         void OnEnable()
@@ -227,10 +213,7 @@ namespace RD.Core
         }
         private void SpawnIndicationUI()
         {
-            // Position: cached AR-hit pose.position (Fix 3). Fallback to plane center.
-            Vector3 pos = selectedPose.position != Vector3.zero
-                ? selectedPose.position
-                : visiblePlane.transform.TransformPoint(visiblePlane.center);
+            Vector3 pos = selectedPose.position + worldOffset;
 
             worldCanvas.transform.position = pos;
 
@@ -245,7 +228,6 @@ namespace RD.Core
             if (!indicationVisible)
             {
                 indicationVisible = true;
-                Debug.Log($"Indication shown at {pos}");
                 GameEvent.TriggerPlaneSelection(indicationVisible);
             }
         }
@@ -286,7 +268,6 @@ namespace RD.Core
             if (!suitablePlanes.ContainsKey(id))
             {
                 suitablePlanes.Add(id, plane);
-                Debug.Log($"Plane added: {id}");
             }
         }
         private bool IsLargeEnough(ARPlane plane)
@@ -321,7 +302,7 @@ namespace RD.Core
         {
             if (visiblePlane == null || !IsLargeEnough(visiblePlane))
                 return;
-            Debug.Log(" Plane Selection Transfered ");
+
             trackedPlane = visiblePlane;
             gameStarted = true;
             HideWorldUI();

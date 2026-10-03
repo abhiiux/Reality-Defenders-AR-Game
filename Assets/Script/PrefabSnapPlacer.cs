@@ -81,7 +81,6 @@ namespace RD.Core
             if (preview != null)
             {
                 preview.ResetPlacement();
-                preview.ResumeAiming();
             }
         }
     }

@@ -554,6 +554,30 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 1947768155}
+        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+        m_MethodName: SetActive
+        m_Mode: 6
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 784925937}
+        m_TargetAssemblyTypeName: RD.Core.GridSnapPreview, RD.Core
+        m_MethodName: ClearTargetPlane
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &778462618
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -697,13 +721,10 @@ MonoBehaviour:
   minPlaneArea: 0.15
   minShortSide: 0.3
   worldCanvas: {fileID: 1321345876}
-  worldOffset: {x: 0, y: 1, z: 0}
+  worldOffset: {x: 0, y: 0.15, z: 0}
   rotationSpeed: 1
   showDistance: 0.8
   hideDistance: 1
-  onGameStart:
-    m_PersistentCalls:
-      m_Calls: []
   onPlaneSelected:
     m_PersistentCalls:
       m_Calls:
@@ -738,8 +759,6 @@ MonoBehaviour:
   marker: {fileID: 1647354679}
   cellSize: 0.15
   footprint: {x: 1, y: 1}
-  snapMode: 1
-  aimMode: 1
   tintRedWhenOutside: 1
   hideMarkerAfterConfirm: 1
   lift: 0.002
@@ -826,11 +845,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.22
+      value: -0.25
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.5
+      value: 0.1
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_LocalRotation.w
@@ -838,27 +857,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_LocalRotation.x
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.7071068
+      value: -0.2588191
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0.7071068
+      value: 0.9659258
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
-      value: 90
+      value: 30
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 90
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: -90
+      value: 180
       objectReference: {fileID: 0}
     - target: {fileID: 6716020200693191320, guid: 28342e3ce55d741bfa7330cc36e61e5b, type: 3}
       propertyPath: m_ConstrainProportionsScale
@@ -2193,11 +2212,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: RD.Core::RD.Core.CanonController
   canonObject: {fileID: 1575089168}
-  projectilePrefab: {fileID: 8391765058772860765, guid: 40380a02fdb624865a8f2f61e2d8a948, type: 3}
   shootingPos: {fileID: 846556407}
-  shootForce: 10
+  shootForce: 3
   projectilePoolParent: {fileID: 1056074654}
   poolSize: 3
+  projectilePrefab: {fileID: 8391765058772860765, guid: 40380a02fdb624865a8f2f61e2d8a948, type: 3}
 --- !u!1001 &1647354678
 PrefabInstance:
   m_ObjectHideFlags: 0

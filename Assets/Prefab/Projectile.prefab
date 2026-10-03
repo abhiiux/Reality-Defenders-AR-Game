@@ -100,7 +100,7 @@ SphereCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7292031150042314785}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 13400000, guid: ab450491ac5b94581915ce49f2658f23, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -154,3 +154,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: RD.Core::RD.Core.ProjectileScript
   lifetime: 10
+  explosionPrefab: {fileID: 5560278617201032188, guid: 60550c60a327046baa9ae43f33475ac6, type: 3}

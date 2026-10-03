@@ -1,39 +1,20 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
-using ETouch = UnityEngine.InputSystem.EnhancedTouch;
 
 namespace RD.Core
 {
     /// <summary>
-    /// Grid-snapped AR placement preview. Raycasts against detected planes,
-    /// snaps the hit to a grid, and drives a scene marker (preview only).
-    /// A separate placer (see PrefabSnapPlacer) spawns the real prefab on Confirm.
-    /// Existing GameStartHelper/BaseBuilder flow is left untouched.
+    /// Grid-snapped AR placement preview. Raycasts from the screen center (crosshair)
+    /// against the selected plane, snaps the hit to a plane-local grid, and drives a
+    /// scene marker (preview only). A separate placer (see PrefabSnapPlacer) spawns the
+    /// real prefab on Confirm.
     /// </summary>
     public class GridSnapPreview : MonoBehaviour
     {
-        /// <summary>Which space the grid snap is computed in. Manually switched in Inspector.</summary>
-        public enum SnapMode
-        {
-            WorldSpace,
-            PlaneLocalSpace
-        }
-
-        /// <summary>
-        /// How the marker is driven. Manually switched in Inspector, never auto-detected.
-        /// Hybrid = crosshair until first touch, follow finger while down, lock on release.
-        /// </summary>
-        public enum AimMode
-        {
-            Hybrid,
-            CrosshairOnly,
-            TouchOnly
-        }
-
         [Header("AR references (reuse scene managers, do not duplicate)")]
         [Tooltip("ARRaycastManager on XR Origin. Reused, never created here.")]
         [SerializeField] private ARRaycastManager raycastManager;
@@ -46,13 +27,9 @@ namespace RD.Core
 
         [Header("Grid")]
         [Tooltip("Cell size in meters. Must match the visible grid lines.")]
-        [SerializeField] private float cellSize = 0.25f;
-        [Tooltip("Marker footprint in cells (x = world X, y = world Z). Odd centers on a cell, even on an intersection.")]
+        [SerializeField] private float cellSize = 0.15f;
+        [Tooltip("Marker footprint in cells. Odd centers on a cell, even on an intersection.")]
         [SerializeField] private Vector2Int footprint = new Vector2Int(1, 1);
-        [Tooltip("WorldSpace suits horizontal planes. PlaneLocalSpace suits tilted/vertical planes.")]
-        [SerializeField] private SnapMode snapMode = SnapMode.WorldSpace;
-        [Tooltip("Aim source. Hybrid = crosshair then touch then lock. Others force one source.")]
-        [SerializeField] private AimMode aimMode = AimMode.Hybrid;
 
         [Header("Marker feedback")]
         [Tooltip("Tint marker red when any footprint corner falls outside plane.boundary, green otherwise.")]
@@ -80,70 +57,20 @@ namespace RD.Core
         // Quad default faces +Z; flatten to face +Y (lie on horizontal plane).
         private static readonly Quaternion FlatOffset = Quaternion.Euler(90f, 0f, 0f);
 
-        // Reused across all raycasts: no per-frame allocations in Update.
+        // Reused across all raycasts / corner checks: no per-frame allocations in Update.
         private static readonly List<ARRaycastHit> RaycastHits = new List<ARRaycastHit>();
+        private static readonly Vector2[] Corners = new Vector2[4];
 
         private static readonly Color ValidColor = new Color(0f, 1f, 0f, 0.4f);
         private static readonly Color OutsideColor = new Color(1f, 0f, 0f, 0.4f);
 
         private Renderer markerRenderer;
         private MaterialPropertyBlock markerBlock;
-        private ETouch.Finger activeFinger;
-        private Vector2 currentTouchPos;
-        private bool isTouchDown;
-        private bool touchBeganOnUI;
-        private bool lockedAfterRelease;
         private bool hasPlaced;
 
         private void Awake()
         {
-            if (raycastManager == null)
-            {
-                Debug.LogError("GridSnapPreview: raycastManager is not assigned. Assign the ARRaycastManager from XR Origin.", this);
-                enabled = false;
-                return;
-            }
-
-            if (planeManager == null)
-            {
-                Debug.LogError("GridSnapPreview: planeManager is not assigned. Assign the ARPlaneManager from XR Origin.", this);
-                enabled = false;
-                return;
-            }
-
-            if (marker == null)
-            {
-                Debug.LogError("GridSnapPreview: marker is not assigned. Assign a scene Quad Transform (not a prefab asset).", this);
-                enabled = false;
-                return;
-            }
-
-            if (cellSize <= 0f)
-            {
-                Debug.LogError($"GridSnapPreview: cellSize must be > 0 (was {cellSize}).", this);
-                enabled = false;
-                return;
-            }
-
-            if (footprint.x < 1 || footprint.y < 1)
-            {
-                Debug.LogError($"GridSnapPreview: footprint must be >= 1 per axis (was {footprint}).", this);
-                enabled = false;
-                return;
-            }
-
             markerRenderer = marker.GetComponent<Renderer>();
-            if (markerRenderer == null)
-            {
-                Debug.LogError("GridSnapPreview: marker has no Renderer. Marker must be a Quad with a MeshRenderer.", this);
-                enabled = false;
-                return;
-            }
-
-            if (marker.GetComponent<Collider>() != null)
-            {
-                Debug.LogWarning("GridSnapPreview: marker should have no collider (spec). Remove it to avoid blocking raycasts.", this);
-            }
 
             markerBlock = new MaterialPropertyBlock();
             ApplyMarkerScale();
@@ -156,30 +83,12 @@ namespace RD.Core
         {
             if (cellSize <= 0f)
             {
-                cellSize = 0.25f;
+                cellSize = 0.15f;
             }
 
             footprint.x = Mathf.Max(1, footprint.x);
             footprint.y = Mathf.Max(1, footprint.y);
             lift = Mathf.Max(0f, lift);
-        }
-
-        private void OnEnable()
-        {
-            ETouch.EnhancedTouchSupport.Enable();
-            ETouch.Touch.onFingerDown += HandleFingerDown;
-            ETouch.Touch.onFingerMove += HandleFingerMove;
-            ETouch.Touch.onFingerUp += HandleFingerUp;
-        }
-
-        private void OnDisable()
-        {
-            ETouch.Touch.onFingerDown -= HandleFingerDown;
-            ETouch.Touch.onFingerMove -= HandleFingerMove;
-            ETouch.Touch.onFingerUp -= HandleFingerUp;
-            ETouch.EnhancedTouchSupport.Disable();
-            activeFinger = null;
-            isTouchDown = false;
         }
 
         private void Update()
@@ -202,37 +111,7 @@ namespace RD.Core
                 return;
             }
 
-            switch (aimMode)
-            {
-                case AimMode.CrosshairOnly:
-                    AimAtScreenPoint(GetScreenCenter());
-                    break;
-                case AimMode.TouchOnly:
-                    if (isTouchDown && !touchBeganOnUI)
-                    {
-                        AimAtScreenPoint(currentTouchPos);
-                    }
-                    // Otherwise keep the last marker state (never fall back to crosshair).
-                    break;
-                case AimMode.Hybrid:
-                default:
-                    if (isTouchDown)
-                    {
-                        if (!touchBeganOnUI)
-                        {
-                            AimAtScreenPoint(currentTouchPos);
-                        }
-                    }
-                    else if (lockedAfterRelease)
-                    {
-                        // Finger lifted: stay fixed where left. Stop raycasting entirely.
-                    }
-                    else
-                    {
-                        AimAtScreenPoint(GetScreenCenter());
-                    }
-                    break;
-            }
+            AimAtScreenPoint(new Vector2(Screen.width * 0.5f, Screen.height * 0.5f));
         }
 
         /// <summary>Invokes OnConfirmed only when the pose is valid. Wire to a UI button.</summary>
@@ -247,37 +126,15 @@ namespace RD.Core
 
             if (hideMarkerAfterConfirm)
             {
-                hasPlaced = true;
-                HasValidPose = false;
-                isTouchDown = false;
-                lockedAfterRelease = false;
-                if (marker != null)
-                {
-                    marker.gameObject.SetActive(false);
-                }
+                NotifyPlacementComplete();
             }
         }
 
-        /// <summary>Returns to crosshair aiming after confirming. No-op once placed (marker stays gone).</summary>
-        public void ResumeAiming()
-        {
-            if (hasPlaced)
-            {
-                return;
-            }
-
-            lockedAfterRelease = false;
-            isTouchDown = false;
-            touchBeganOnUI = false;
-        }
-
-        /// <summary>Called by the placer after spawning so the preview locks even if Confirm hid logic changes.</summary>
+        /// <summary>Called by the placer after spawning so the preview locks even if Confirm hide logic changes.</summary>
         public void NotifyPlacementComplete()
         {
             hasPlaced = true;
             HasValidPose = false;
-            isTouchDown = false;
-            lockedAfterRelease = false;
             if (marker != null)
             {
                 marker.gameObject.SetActive(false);
@@ -288,7 +145,6 @@ namespace RD.Core
         public void ResetPlacement()
         {
             hasPlaced = false;
-            lockedAfterRelease = false;
         }
 
         /// <summary>
@@ -304,8 +160,6 @@ namespace RD.Core
 
             targetPlane = plane;
             hasPlaced = false;
-            lockedAfterRelease = false;
-            isTouchDown = false;
             HasValidPose = false;
 
             GameEvent.TriggerPlanePlacement(true);
@@ -316,79 +170,6 @@ namespace RD.Core
         {
             targetPlane = null;
             SetInvalid();
-        }
-
-        private static Vector2 GetScreenCenter()
-        {
-            return new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
-        }
-
-        private void HandleFingerDown(ETouch.Finger finger)
-        {
-            if (hasPlaced || isTouchDown || targetPlane == null)
-            {
-                return;
-            }
-
-            activeFinger = finger;
-            isTouchDown = true;
-            currentTouchPos = finger.screenPosition;
-            touchBeganOnUI = IsTouchOverUI(finger);
-            // A new touch resumes raycasting (ends the post-release lock).
-            lockedAfterRelease = false;
-        }
-
-        private void HandleFingerMove(ETouch.Finger finger)
-        {
-            if (!isTouchDown || finger != activeFinger)
-            {
-                return;
-            }
-
-            currentTouchPos = finger.screenPosition;
-        }
-
-        private void HandleFingerUp(ETouch.Finger finger)
-        {
-            if (!isTouchDown || finger != activeFinger)
-            {
-                return;
-            }
-
-            isTouchDown = false;
-            activeFinger = null;
-
-            // Finger lifted with a valid, non-UI touch: freeze the marker where left.
-            if (!touchBeganOnUI && HasValidPose && !hasPlaced)
-            {
-                lockedAfterRelease = true;
-            }
-        }
-
-        // Evaluated on Began and remembered for the whole touch so Confirm-button
-        // presses never move the marker. Uses the touch id per spec.
-        private static bool IsTouchOverUI(ETouch.Finger finger)
-        {
-            if (EventSystem.current == null)
-            {
-                return false;
-            }
-
-            int pointerId = finger.index;
-            try
-            {
-                if (finger.currentTouch.valid)
-                {
-                    pointerId = finger.currentTouch.touchId;
-                }
-            }
-            catch (InvalidOperationException)
-            {
-                // currentTouch can throw when the finger has no active touch record.
-                pointerId = finger.index;
-            }
-
-            return EventSystem.current.IsPointerOverGameObject(pointerId);
         }
 
         private void AimAtScreenPoint(Vector2 screenPoint)
@@ -402,6 +183,14 @@ namespace RD.Core
             }
 
             ARRaycastHit rayHit = RaycastHits[0];
+
+            // Only the selected plane drives quad placement.
+            if (rayHit.trackableId != targetPlane.trackableId)
+            {
+                SetInvalid();
+                return;
+            }
+
             ARPlane plane = planeManager.GetPlane(rayHit.trackableId);
             if (plane == null)
             {
@@ -409,23 +198,7 @@ namespace RD.Core
                 return;
             }
 
-            // Only the selected plane drives quad placement.
-            if (targetPlane == null || plane.trackableId != targetPlane.trackableId)
-            {
-                SetInvalid();
-                return;
-            }
-
-            Pose snapped;
-            bool inside;
-            if (snapMode == SnapMode.PlaneLocalSpace)
-            {
-                snapped = SnapPlaneLocal(rayHit, plane, out inside);
-            }
-            else
-            {
-                snapped = SnapWorld(rayHit, plane, out inside);
-            }
+            Pose snapped = SnapPlaneLocal(rayHit, plane, out bool inside);
 
             SnappedPose = snapped;
             HasValidPose = true;
@@ -435,30 +208,7 @@ namespace RD.Core
             marker.rotation = snapped.rotation * FlatOffset;
             marker.gameObject.SetActive(true);
 
-            if (tintRedWhenOutside)
-            {
-                SetMarkerColor(inside ? ValidColor : OutsideColor);
-            }
-            else
-            {
-                SetMarkerColor(ValidColor);
-            }
-        }
-
-        // World grid: lines at cellSize multiples. Odd footprints center on cell
-        // centers, even footprints center on intersections.
-        private Pose SnapWorld(ARRaycastHit rayHit, ARPlane plane, out bool inside)
-        {
-            Vector3 p = rayHit.pose.position;
-            float offsetX = (footprint.x % 2 == 1) ? cellSize * 0.5f : 0f;
-            float offsetZ = (footprint.y % 2 == 1) ? cellSize * 0.5f : 0f;
-            float snappedX = Mathf.Round((p.x - offsetX) / cellSize) * cellSize + offsetX;
-            float snappedZ = Mathf.Round((p.z - offsetZ) / cellSize) * cellSize + offsetZ;
-            Vector3 snappedPos = new Vector3(snappedX, p.y + lift, snappedZ);
-            Pose snapped = new Pose(snappedPos, Quaternion.identity);
-
-            inside = IsFootprintInsidePlane(plane, snappedPos);
-            return snapped;
+            SetMarkerColor(tintRedWhenOutside && !inside ? OutsideColor : ValidColor);
         }
 
         // Plane-local grid: snap in plane space so tilted/vertical planes work,
@@ -478,8 +228,7 @@ namespace RD.Core
             return snapped;
         }
 
-        // Tests every footprint corner in plane local space (x -> x, world z -> local z
-        // via InverseTransformPoint mapping y->z). Corners outside boundary => red tint.
+        // Tests every footprint corner in plane local space. Corners outside boundary => red tint.
         private bool IsFootprintInsidePlane(ARPlane plane, Vector3 worldPos)
         {
             if (plane.boundary.IsCreated && plane.boundary.Length == 0)
@@ -490,15 +239,14 @@ namespace RD.Core
             float halfX = footprint.x * cellSize * 0.5f;
             float halfZ = footprint.y * cellSize * 0.5f;
 
-            Vector2[] corners = new Vector2[4];
-            corners[0] = PlaneLocalXZ(plane, worldPos + new Vector3(-halfX, 0f, -halfZ));
-            corners[1] = PlaneLocalXZ(plane, worldPos + new Vector3(halfX, 0f, -halfZ));
-            corners[2] = PlaneLocalXZ(plane, worldPos + new Vector3(halfX, 0f, halfZ));
-            corners[3] = PlaneLocalXZ(plane, worldPos + new Vector3(-halfX, 0f, halfZ));
+            Corners[0] = PlaneLocalXZ(plane, worldPos + new Vector3(-halfX, 0f, -halfZ));
+            Corners[1] = PlaneLocalXZ(plane, worldPos + new Vector3(halfX, 0f, -halfZ));
+            Corners[2] = PlaneLocalXZ(plane, worldPos + new Vector3(halfX, 0f, halfZ));
+            Corners[3] = PlaneLocalXZ(plane, worldPos + new Vector3(-halfX, 0f, halfZ));
 
-            for (int i = 0; i < corners.Length; i++)
+            for (int i = 0; i < Corners.Length; i++)
             {
-                if (!IsPointInPolygon(corners[i], plane.boundary))
+                if (!IsPointInPolygon(Corners[i], plane.boundary))
                 {
                     return false;
                 }
@@ -514,7 +262,7 @@ namespace RD.Core
         }
 
         // Standard ray-casting point-in-polygon over the plane boundary loop.
-        private static bool IsPointInPolygon(Vector2 point, Unity.Collections.NativeArray<Vector2> polygon)
+        private static bool IsPointInPolygon(Vector2 point, NativeArray<Vector2> polygon)
         {
             bool inside = false;
             int count = polygon.Length;
