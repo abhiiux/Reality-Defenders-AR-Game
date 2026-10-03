@@ -18,15 +18,13 @@ namespace RD.Core
     /// - Per-plane visuals come from ARPlaneManager.planePrefab.
     ///   Plane detection stays on after Start.
     /// </summary>
+    [RequireComponent(typeof(ARPlaneManager), typeof(ARRaycastManager))]
     public class GameStartHelper : MonoBehaviour
     {
-        [Header("GameBase")]
-        [SerializeField] private GameObject gameBasePrefab;
-        [SerializeField] private float baseHeightOffset;
-
         [Header("UI (single selection)")]
         [Tooltip("Existing screen-space object (e.g. Build Base button). Toggled, not duplicated.")]
         [SerializeField] private RectTransform gameUI;
+        [SerializeField] private Button gameStartButtons;
         [SerializeField] private bool autoManageGameUI = true;
 
         [Header("Plane filter (size only)")]
@@ -34,6 +32,20 @@ namespace RD.Core
         [SerializeField] private float minPlaneArea = 0.25f;
         [Tooltip("Minimum short side in metres. Shortest edge of the plane's bounding box (min of size.x/size.y). Rejects long thin slivers.")]
         [SerializeField] private float minShortSide = 0.3f;
+
+        [Header("World UI (indication)")]
+        [Tooltip("World-space canvas hosting gameUI. Auto-created at runtime if null (scene file untouched).")]
+
+        [SerializeField] private Canvas worldCanvas;
+        [SerializeField] private Vector3 worldOffset = new Vector3(0f, 0.02f, 0f);
+        [SerializeField] private float rotationSpeed;
+
+        [Header("Proximity gate")]
+        [Tooltip("Show world UI only when camera is closer than this (metres, slant 3D).")]
+
+        [SerializeField] private float showDistance = 1.5f;
+        [Tooltip("Hide when farther than this. Keep > showDistance for hysteresis (avoids flicker).")]
+        [SerializeField] private float hideDistance = 1.8f;
 
         [Header("Events")]
         public UnityEvent onGameStart;
@@ -50,19 +62,6 @@ namespace RD.Core
         public GameObject SpawnedGameBase => spawnedGameBase;
         public IReadOnlyCollection<ARPlane> SuitablePlanes => suitablePlanes.Values;
 
-        [Header("World UI (indication)")]
-        [Tooltip("World-space canvas hosting gameUI. Auto-created at runtime if null (scene file untouched).")]
-        [SerializeField] private Canvas worldCanvas;
-        [SerializeField] private Vector3 worldOffset = new Vector3(0f, 0.02f, 0f);
-        [SerializeField] private bool billboardYOnly = true;
-        [SerializeField] private float rotationSpeed;
-
-        [Header("Proximity gate")]
-        [Tooltip("Show world UI only when camera is closer than this (metres, slant 3D).")]
-        [SerializeField] private float showDistance = 1.5f;
-        [Tooltip("Hide when farther than this. Keep > showDistance for hysteresis (avoids flicker).")]
-        [SerializeField] private float hideDistance = 1.8f;
-
         private ARPlaneManager planeManager;
         private ARRaycastManager raycastManager;
         private Camera arCamera;
@@ -71,7 +70,7 @@ namespace RD.Core
         private readonly List<ARRaycastHit> centerScreenHits = new();
         private Pose selectedPose;
         private bool gameStarted;
-        private bool uiAdded = false;
+        private bool indicationVisible = false;
         private GameObject spawnedGameBase;
 
 
@@ -80,30 +79,36 @@ namespace RD.Core
             planeManager = GetComponent<ARPlaneManager>();
             raycastManager = GetComponent<ARRaycastManager>();
             arCamera = GetComponentInChildren<Camera>();
+            Debug.Assert(planeManager != null, "GameStartHelper requires ARPlaneManager on the same GameObject.");
+            Debug.Assert(raycastManager != null, "GameStartHelper requires ARRaycastManager on the same GameObject.");
+            Debug.Assert(arCamera != null, "GameStartHelper requires a Camera in children (XR Origin).");
+            Debug.Assert(worldCanvas != null, "GameStartHelper requires worldCanvas to be assigned.");
         }
 
         void OnEnable()
         {
-            if (planeManager != null)
-                planeManager.trackablesChanged.AddListener(HandlePlanesChanged);
+            planeManager.trackablesChanged.AddListener(HandlePlanesChanged);
+
+                gameStartButtons.onClick.AddListener(GivePlaneSelection);
         }
 
         void OnDisable()
         {
-            if (planeManager != null)
-                planeManager.trackablesChanged.RemoveListener(HandlePlanesChanged);
+            planeManager.trackablesChanged.RemoveListener(HandlePlanesChanged);
+
+                gameStartButtons.onClick.RemoveListener(GivePlaneSelection);
         }
 
         void OnValidate()
         {
             if (hideDistance < showDistance)
                 hideDistance = showDistance + 0.3f;
-            if (rotationSpeed < 0f)
-                rotationSpeed = 0f;
         }
 
         void Update()
         {
+            if(gameStarted) return;
+            
             if (SuitablePlaneCount > 0 && IsCameraLookingAtPlane(arCamera, 5f) && IsCameraCloseToPlane())
             {
                 SpawnIndicationUI();
@@ -116,12 +121,7 @@ namespace RD.Core
 
         private bool IsCameraCloseToPlane()
         {
-            if (visiblePlane == null)
-                return false;
-
             Camera cam = arCamera;
-            if (cam == null)
-                return false;
 
             Vector3 anchor = selectedPose.position != Vector3.zero
                 ? selectedPose.position
@@ -130,7 +130,7 @@ namespace RD.Core
             float dist = Vector3.Distance(cam.transform.position, anchor);
 
             // Hysteresis: use wider hide threshold while already showing.
-            bool showing = worldCanvas != null && worldCanvas.gameObject.activeSelf;
+            bool showing = worldCanvas.gameObject.activeSelf;
             float threshold = showing ? hideDistance : showDistance;
             return dist <= threshold;
         }
@@ -156,6 +156,11 @@ namespace RD.Core
                     if (!isLarge)
                     {
                         suitablePlanes.Remove(updated.trackableId);
+                        if (visiblePlane != null && visiblePlane.trackableId == updated.trackableId)
+                        {
+                            visiblePlane = null;
+                            HideWorldUI();
+                        }
                         Debug.Log($"Plane removed (too small): {updated.trackableId}");
                     }
                     else
@@ -182,31 +187,38 @@ namespace RD.Core
                     }
                 }
             }
+
+            foreach (var removed in eventArgs.removed)
+            {
+                TrackableId removedId = removed.Key;
+                suitablePlanes.Remove(removedId);
+                if (visiblePlane != null && visiblePlane.trackableId == removedId)
+                {
+                    visiblePlane = null;
+                    HideWorldUI();
+                }
+            }
         }
         public bool IsCameraLookingAtPlane(Camera arCamera, float maxDistance = 5f)
         {
             // Primary: AR raycast from screen center. Does not require Camera ref,
             // so a null arCamera (e.g. GetComponent<Camera>() on XR Origin) no longer blocks this.
-            if (raycastManager != null)
+            centerScreenHits.Clear();
+            Vector2 screenCenter = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+            if (raycastManager.Raycast(screenCenter, centerScreenHits, TrackableType.PlaneWithinPolygon))
             {
-                centerScreenHits.Clear();
-                Vector2 screenCenter = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
-                if (raycastManager.Raycast(screenCenter, centerScreenHits, TrackableType.PlaneWithinPolygon))
+                foreach (var arHit in centerScreenHits)
                 {
-                    foreach (var arHit in centerScreenHits)
+                    if (arHit.distance > maxDistance)
+                        continue;
+
+                    ARPlane hitPlane = planeManager.GetPlane(arHit.trackableId);
+                    if (hitPlane != null && IsLargeEnough(hitPlane))
                     {
-                        if (arHit.distance > maxDistance)
-                            continue;
-
-                        ARPlane hitPlane = planeManager != null ? planeManager.GetPlane(arHit.trackableId) : null;
-                        if (hitPlane != null)
-                        {
-                            visiblePlane = hitPlane;
-                            selectedPose = arHit.pose;
-                            return true;
-                        }
+                        visiblePlane = hitPlane;
+                        selectedPose = arHit.pose;
+                        return true;
                     }
-
                 }
 
             }
@@ -215,9 +227,6 @@ namespace RD.Core
         }
         private void SpawnIndicationUI()
         {
-            if (gameStarted || visiblePlane == null || worldCanvas == null)
-                return;
-
             // Position: cached AR-hit pose.position (Fix 3). Fallback to plane center.
             Vector3 pos = selectedPose.position != Vector3.zero
                 ? selectedPose.position
@@ -233,16 +242,16 @@ namespace RD.Core
                     worldCanvas.gameObject.SetActive(true);
             }
 
-            uiAdded = true;
-            Debug.Log($" plane Visible at {pos}");
+            if (!indicationVisible)
+            {
+                indicationVisible = true;
+                Debug.Log($"Indication shown at {pos}");
+                GameEvent.TriggerPlaneSelection(indicationVisible);
+            }
         }
         private void RotateWorldUI(RectTransform info)
         {
-            if (worldCanvas == null)
-                return;
-            Camera cam = arCamera != null ? arCamera : Camera.main;
-            if (cam == null)
-                return;
+            Camera cam = arCamera;
             Vector3 lookDirection = info.transform.position - cam.transform.position;
             if (lookDirection.sqrMagnitude < 0.0001f)
                 return;
@@ -258,13 +267,18 @@ namespace RD.Core
         {
             if (!autoManageGameUI)
                 return;
-            if (worldCanvas == null)
-                return;
             // Hide while not looking at a plane; keep instance for reuse (no per-frame alloc).
             // Called from Update's else branch, so hide unconditionally here.
             if (worldCanvas.gameObject.activeSelf)
             {
                 worldCanvas.gameObject.SetActive(false);
+            }
+
+            // Fire once on the shown -> hidden transition
+            if (indicationVisible)
+            {
+                indicationVisible = false;
+                GameEvent.TriggerPlaneSelection(indicationVisible);
             }
         }
         private void StoreSuitablePlane(TrackableId id, ARPlane plane)
@@ -277,7 +291,7 @@ namespace RD.Core
         }
         private bool IsLargeEnough(ARPlane plane)
         {
-            if (plane == null || plane.subsumedBy != null)
+            if (plane.trackingState != TrackingState.Tracking || plane.subsumedBy != null)
                 return false;
             float area = GetPlaneArea(plane);
             float shortSide = Mathf.Min(plane.size.x, plane.size.y);
@@ -287,6 +301,32 @@ namespace RD.Core
         public static float GetPlaneArea(ARPlane plane)
         {
             return plane.size.x * plane.size.y;
+        }
+        private void StopARPlaneDetection()
+        {
+            if(planeManager.currentDetectionMode == PlaneDetectionMode.None) return;
+
+            planeManager.requestedDetectionMode = PlaneDetectionMode.None; //Found Playable field
+        }
+        public void RestartARPlaneDetection()
+        {
+            if(planeManager.currentDetectionMode == PlaneDetectionMode.None)
+            {
+                planeManager.requestedDetectionMode = PlaneDetectionMode.Horizontal; 
+                gameStarted = false;
+                visiblePlane = null;
+            }
+        }
+        private void GivePlaneSelection()
+        {
+            if (visiblePlane == null || !IsLargeEnough(visiblePlane))
+                return;
+            Debug.Log(" Plane Selection Transfered ");
+            trackedPlane = visiblePlane;
+            gameStarted = true;
+            HideWorldUI();
+            StopARPlaneDetection();
+            onPlaneSelected?.Invoke(arg0: trackedPlane);
         }
 
     }
