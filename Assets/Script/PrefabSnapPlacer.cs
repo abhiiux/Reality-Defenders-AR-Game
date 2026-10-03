@@ -66,6 +66,7 @@ namespace RD.Core
 
             // Lock the preview so the marker stays gone after the spawn.
             preview.NotifyPlacementComplete();
+            GameEvent.TriggerCanonInit();
         }
 
         /// <summary>Destroys the spawned instance and lets the preview aim again.</summary>
