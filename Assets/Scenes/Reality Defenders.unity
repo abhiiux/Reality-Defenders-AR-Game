@@ -737,7 +737,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 784925936}
         m_TargetAssemblyTypeName: RD.Core.GameStartHelper, RD.Core
-        m_MethodName: RestartARPlaneDetection
+        m_MethodName: ReturnToPlaneSelection
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -747,22 +747,10 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
-      - m_Target: {fileID: 1947768155}
-        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
-        m_MethodName: SetActive
+      - m_Target: {fileID: 1528673698}
+        m_TargetAssemblyTypeName: RD.Core.UIManager, RD.Core
+        m_MethodName: ShowSelectPlaneButton
         m_Mode: 6
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
-      - m_Target: {fileID: 784925937}
-        m_TargetAssemblyTypeName: RD.Core.GridSnapPreview, RD.Core
-        m_MethodName: ClearTargetPlane
-        m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -2659,7 +2647,9 @@ MonoBehaviour:
   cannonUIPanel: {fileID: 2059709009}
   worldUIPanel: {fileID: 111192446}
   worldUIText: {fileID: 1557130042}
-  worldUIOffset: {x: 0, y: 0.5, z: 0}
+  worldUIOffset: {x: 0, y: 0.35, z: 0}
+  worldUIFontSizeOnEnd: 10
+  defaultworldUIFontSize: 36
   scoreNumber: {fileID: 1660578144}
   rotationSpeed: 0.5
   popUpDuration: 2

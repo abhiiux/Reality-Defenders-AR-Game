@@ -16,6 +16,8 @@ namespace RD.Core
         [SerializeField] private RectTransform worldUIPanel;
         [SerializeField] private TMP_Text worldUIText;
         [SerializeField] private Vector3 worldUIOffset;
+        [SerializeField] private float worldUIFontSizeOnEnd;
+        [SerializeField] private float defaultworldUIFontSize;
 
         [Header("Score")]
         [SerializeField] private TMP_Text scoreNumber;
@@ -27,9 +29,10 @@ namespace RD.Core
         [Header("Quit")]
         [SerializeField] private Button quitButton;
 
-        private const string WorldScorePopUp = "+1";
+        private const string WorldScorePopUp = "+10";
         private const string GameEndPopup = "Wave Cleared!";
         private const string ThankPopup = "Thank You For Playing! :]";
+        private const int MaxScore = 30;
 
         private int scoreInt;
         private Camera cam;
@@ -64,14 +67,19 @@ namespace RD.Core
                 RotateWorldUI(worldUIPanel);
         }
 
-        private void ShowPlacePanel(bool state) => placePlanePanel.gameObject.SetActive(state);
-        private void ShowSelectPlaneButton(bool state) => selectPlanePanel.gameObject.SetActive(state);
+        public void ShowPlacePanel(bool state) => placePlanePanel.gameObject.SetActive(state);
+        public void ShowSelectPlaneButton(bool state) => selectPlanePanel.gameObject.SetActive(state);
         public void TurnOFFPlacementUI() => ShowPlacePanel(false);
 
         private void ShowCannonPanel(Vector3 pos)
         {
             cannonUIPanel.gameObject.SetActive(true);
             HandleWorldUIPlacement(pos);
+
+            scoreInt = 0;
+            scoreNumber.text = scoreInt.ToString();
+
+            worldUIText.fontSize = defaultworldUIFontSize;
         }
 
         private void HandleWorldUIPlacement(Vector3 pos)
@@ -82,7 +90,7 @@ namespace RD.Core
 
         private void HandleUpdateScore()
         {
-            scoreInt++;
+            scoreInt += 10;
             scoreNumber.text = scoreInt.ToString();
 
             if (popUpRoutine != null)
@@ -92,9 +100,10 @@ namespace RD.Core
 
         private IEnumerator UpdateWorldUI()
         {
-            if( scoreInt >= 3)
+            if( scoreInt >= MaxScore)
             {
                 worldUIText.text = GameEndPopup;
+                worldUIText.fontSize = worldUIFontSizeOnEnd;
             }
             else
             {
@@ -104,9 +113,10 @@ namespace RD.Core
 
             yield return new WaitForSeconds(popUpDuration);
 
-            if( scoreInt >= 3 )
+            if( scoreInt >= MaxScore )
             {
                 worldUIText.text = ThankPopup;
+                worldUIText.fontSize = worldUIFontSizeOnEnd;
 
                 yield return new WaitForSeconds(popUpDuration);
             }

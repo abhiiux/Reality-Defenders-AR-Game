@@ -6,13 +6,24 @@ namespace RD.Core
     [RequireComponent(typeof(Rigidbody))]
     public class ProjectileScript : MonoBehaviour
     {
+        public enum ProjectileState
+        {
+            Inactive,   // in pool, waiting to be fired
+            Flying,     // launched, in the air
+            Hit,        // hit the target
+            Miss        // flew past max distance
+        }
+
         [SerializeField] private float lifetime = 10f;
-        [SerializeField] private GameObject explosionPrefab; 
+        [SerializeField] private float maxDistance = 5f;
+        [SerializeField] private GameObject explosionPrefab;
 
         private ParticleSystem explosionEffectParticle;
-        private float timer;
-        private bool isReturning = true; // inactive until fired
         private Rigidbody rb;
+        private Vector3 launchPosition;
+        private float timer;
+
+        public ProjectileState State { get; private set; } = ProjectileState.Inactive;
 
         public event Action<ProjectileScript> ReturnToPool;
         public Rigidbody Rigidbody => rb;
@@ -25,48 +36,75 @@ namespace RD.Core
 
         void Update()
         {
-            if (isReturning) return;
+            if (State != ProjectileState.Flying) return;
 
+            // Miss: travelled more than maxDistance from the launch point
+            if ((transform.position - launchPosition).sqrMagnitude > maxDistance * maxDistance)
+            {
+                SetState(ProjectileState.Miss);
+                return;
+            }
+
+            // Safety net
             timer -= Time.deltaTime;
-            if (timer <= 0f) ReturnProjectile();
+            if (timer <= 0f) SetState(ProjectileState.Miss);
         }
 
         void OnCollisionEnter(Collision _other)
         {
-            if(_other.gameObject.tag == "Player")
-            {
-                _other.gameObject.SetActive(false);
-                PlayParticle( _other.transform.position );
-                ReturnProjectile();
+            if (State != ProjectileState.Flying) return;
 
-                GameEvent.TriggerAddScore();
+            if (_other.gameObject.tag == "Player")
+            {
+                SetState(ProjectileState.Hit, _other.gameObject);
             }
         }
 
         public void Launch(Vector3 position, Quaternion rotation, Vector3 impulse)
         {
             transform.SetPositionAndRotation(position, rotation);
+            launchPosition = position;
 
-            // Unity 6: linearVelocity. On older versions use rb.velocity.
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
             rb.AddForce(impulse, ForceMode.Impulse);
 
             timer = lifetime;
-            isReturning = false;
+            SetState(ProjectileState.Flying);
         }
+
+        private void SetState(ProjectileState newState, GameObject target = null)
+        {
+            if (State == newState) return;
+            State = newState;
+
+            switch (State)
+            {
+                case ProjectileState.Hit:
+                    target.SetActive(false);
+                    PlayParticle(target.transform.position);
+                    GameEvent.TriggerAddScore();
+                    ReturnProjectile();
+                    break;
+
+                case ProjectileState.Miss:
+                    ReturnProjectile();
+                    break;
+            }
+        }
+
         private void PlayParticle(Vector3 position)
         {
             ParticleSystem effectInstance = Instantiate(explosionEffectParticle, position, Quaternion.identity);
-        
+
             // Starts playback
             effectInstance.Play(true);
         }
+
         private void ReturnProjectile()
         {
-            if (isReturning) return;
-            isReturning = true;
             ReturnToPool?.Invoke(this);
+            State = ProjectileState.Inactive; // ready for reuse from the pool
         }
     }
 }
