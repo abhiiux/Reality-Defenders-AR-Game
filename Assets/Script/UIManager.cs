@@ -70,10 +70,13 @@ namespace RD.Core
         public void ShowPlacePanel(bool state) => placePlanePanel.gameObject.SetActive(state);
         public void ShowSelectPlaneButton(bool state) => selectPlanePanel.gameObject.SetActive(state);
         public void TurnOFFPlacementUI() => ShowPlacePanel(false);
+        public void HideCanonPanel() => cannonUIPanel.gameObject.SetActive(true);
 
         private void ShowCannonPanel(Vector3 pos)
         {
-            cannonUIPanel.gameObject.SetActive(true);
+            if(!cannonUIPanel.gameObject.activeSelf)
+                cannonUIPanel.gameObject.SetActive(true);
+                
             HandleWorldUIPlacement(pos);
 
             scoreInt = 0;
