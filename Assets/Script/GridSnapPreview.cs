@@ -15,27 +15,31 @@ namespace RD.Core
     /// </summary>
     public class GridSnapPreview : MonoBehaviour
     {
-        [Header("AR references (reuse scene managers, do not duplicate)")]
-        [Tooltip("ARRaycastManager on XR Origin. Reused, never created here.")]
+        [Header("AR references")]
+        [Tooltip("ARRaycastManager on XR Origin.")]
         [SerializeField] private ARRaycastManager raycastManager;
+
         [Tooltip("ARPlaneManager on XR Origin. Used for GetPlane + boundary checks.")]
         [SerializeField] private ARPlaneManager planeManager;
 
-        [Header("Preview marker (scene object, not a prefab asset)")]
+        [Header("Preview marker")]
         [Tooltip("Scene Quad driven as the snapped preview. Hidden when pose is invalid or after placement.")]
         [SerializeField] private Transform marker;
 
         [Header("Grid")]
-        [Tooltip("Cell size in meters. Must match the visible grid lines.")]
+        [Tooltip("Cell size in meters.")]
         [SerializeField] private float cellSize = 0.15f;
+
         [Tooltip("Marker footprint in cells. Odd centers on a cell, even on an intersection.")]
         [SerializeField] private Vector2Int footprint = new Vector2Int(1, 1);
 
         [Header("Marker feedback")]
         [Tooltip("Tint marker red when any footprint corner falls outside plane.boundary, green otherwise.")]
         [SerializeField] private bool tintRedWhenOutside = true;
+
         [Tooltip("Hide the marker permanently after a successful Confirm (single-spawn flow).")]
         [SerializeField] private bool hideMarkerAfterConfirm = true;
+        
         [Tooltip("Lift above the plane in meters to avoid z-fighting.")]
         [SerializeField] private float lift = 0.002f;
 
@@ -45,10 +49,10 @@ namespace RD.Core
         /// <summary>Latest snapped pose (upright rotation, for spawning).</summary>
         public Pose SnappedPose { get; private set; }
 
-        /// <summary>Fired by Confirm() only when the pose is valid. Nothing is instantiated here.</summary>
+        /// <summary>Fired by Confirm() only when the pose is valid.</summary>
         public event Action<Pose> OnConfirmed;
 
-        /// <summary>Selected plane this preview is locked to. Set via SetTargetPlane (e.g. GameStartHelper.onPlaneSelected).</summary>
+        /// <summary>Selected plane this preview is locked to.</summary>
         public ARPlane TargetPlane => targetPlane;
 
         // Runtime-selected plane. Null until GivePlaneSelection fires onPlaneSelected.
@@ -114,7 +118,7 @@ namespace RD.Core
             AimAtScreenPoint(new Vector2(Screen.width * 0.5f, Screen.height * 0.5f));
         }
 
-        /// <summary>Invokes OnConfirmed only when the pose is valid. Wire to a UI button.</summary>
+        /// <summary>Invokes OnConfirmed only when the pose is valid.</summary>
         public void Confirm()
         {
             if (!HasValidPose || hasPlaced || targetPlane == null)
@@ -130,7 +134,7 @@ namespace RD.Core
             }
         }
 
-        /// <summary>Called by the placer after spawning so the preview locks even if Confirm hide logic changes.</summary>
+        /// <summary>Locks the preview and hides the marker after placement.</summary>
         public void NotifyPlacementComplete()
         {
             hasPlaced = true;
@@ -141,16 +145,13 @@ namespace RD.Core
             }
         }
 
-        /// <summary>Clears the placed lock (e.g. placer destroyed its instance) so aiming can resume.</summary>
+        /// <summary>Clears the placed lock so aiming can resume.</summary>
         public void ResetPlacement()
         {
             hasPlaced = false;
         }
 
-        /// <summary>
-        /// Locks the preview to the selected plane. Wire to GameStartHelper.onPlaneSelected
-        /// so quad placement only runs after GivePlaneSelection. Null is ignored.
-        /// </summary>
+        /// <summary>Locks the preview to the selected plane. Null is ignored.</summary>
         public void SetTargetPlane(ARPlane plane)
         {
             if (plane == null)
@@ -169,9 +170,10 @@ namespace RD.Core
         public void ClearTargetPlane()
         {
             targetPlane = null;
+            hasPlaced = false;
             SetInvalid();
+            GameEvent.TriggerPlanePlacement(false);
         }
-
         private void AimAtScreenPoint(Vector2 screenPoint)
         {
             RaycastHits.Clear();

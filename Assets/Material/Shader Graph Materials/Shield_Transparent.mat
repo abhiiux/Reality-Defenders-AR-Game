@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Shield
+  m_Name: Shield_Transparent
   m_Shader: {fileID: -6465566751694194690, guid: 3631a1703dfaede4fa92591fb72c1144, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -61,17 +61,17 @@ Material:
     - Vector1_2342C283: 0
     - Vector1_42828CE8: 0
     - Vector1_AAC632E0: 0
-    - _GradientTileY: 7.84
+    - _GradientTileY: 5
     - _QueueControl: 0
     - _QueueOffset: 0
-    - _ShieldSpeed: 0.046
+    - _ShieldSpeed: 0.2
     m_Colors:
     - Color_395B99DB: {r: 0, g: 0, b: 0, a: 0}
     - Color_5BD6047A: {r: 0, g: 0, b: 0, a: 0}
     - Color_ED1E3BBE: {r: 0, g: 0, b: 0, a: 0}
     - Vector2_58725786: {r: 0, g: 0, b: 0, a: 0}
-    - _EmissionColor: {r: 0.105731584, g: 0.27408355, b: 0.8301887, a: 1}
-    - _ExtraEmissionColor: {r: 0.5806126, g: 1.567471, b: 6.478416, a: 1}
+    - _EmissionColor: {r: 0.10588236, g: 0.83137256, b: 0.256326, a: 1}
+    - _ExtraEmissionColor: {r: 3.007992, g: 8.735539, b: 3.8967488, a: 1}
     - _MainTexTiling: {r: 1, g: 1, b: 0, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

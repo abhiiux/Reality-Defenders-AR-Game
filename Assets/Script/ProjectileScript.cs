@@ -38,6 +38,8 @@ namespace RD.Core
                 _other.gameObject.SetActive(false);
                 PlayParticle( _other.transform.position );
                 ReturnProjectile();
+
+                GameEvent.TriggerAddScore();
             }
         }
 

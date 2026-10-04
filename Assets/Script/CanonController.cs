@@ -19,10 +19,10 @@ namespace RD.Core
 
         private ObjectPool<ProjectileScript> objectPool;
 
-        void OnEnable()  => GameEvent.OnCanonInit += HandleCanonAwake;
-        void OnDisable() => GameEvent.OnCanonInit -= HandleCanonAwake;
+        void OnEnable()  => GameEvent.OnBasePlacement += HandleCanonAwake;
+        void OnDisable() => GameEvent.OnBasePlacement -= HandleCanonAwake;
 
-        private void HandleCanonAwake()
+        private void HandleCanonAwake(Vector3 pos)
         {
             canonObject.SetActive(true);
             CreatePool();

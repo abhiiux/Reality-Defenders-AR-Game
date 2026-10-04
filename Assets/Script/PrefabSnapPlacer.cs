@@ -5,15 +5,16 @@ namespace RD.Core
     /// <summary>
     /// Spawns a single prefab instance at the snapped pose reported by GridSnapPreview.
     /// After spawning, the marker is hidden permanently (single-instance flow).
-    /// Existing BaseBuilder flow is left untouched.
     /// </summary>
     public class PrefabSnapPlacer : MonoBehaviour
     {
-        [Header("Sources (scene references, no instantiation here except the prefab)")]
+        [Header("Sources")]
         [Tooltip("Preview that reports SnappedPose via OnConfirmed.")]
         [SerializeField] private GridSnapPreview preview;
-        [Tooltip("Prefab to place at runtime. Set to GameBase.prefab.")]
+
+        [Tooltip("Prefab to place at runtime.")]
         [SerializeField] private GameObject prefab;
+        
         [Tooltip("Optional parent for the spawned instance. Null spawns at scene root.")]
         [SerializeField] private Transform parent;
 
@@ -66,7 +67,7 @@ namespace RD.Core
 
             // Lock the preview so the marker stays gone after the spawn.
             preview.NotifyPlacementComplete();
-            GameEvent.TriggerCanonInit();
+            GameEvent.TriggerBasePlacement(SpawnedInstance.transform.position);
         }
 
         /// <summary>Destroys the spawned instance and lets the preview aim again.</summary>
